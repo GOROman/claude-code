@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Mesh Deformation - プルンプルン画像</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #fff;
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+
+        .sidebar {
+            width: 280px;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            overflow-y: auto;
+        }
+
+        .sidebar h1 {
+            font-size: 1.2rem;
+            margin-bottom: 10px;
+            color: #00d4ff;
+        }
+
+        .control-group {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 10px;
+        }
+
+        .control-group h3 {
+            font-size: 0.85rem;
+            margin-bottom: 10px;
+            color: #aaa;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .control-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .control-row label {
+            font-size: 0.9rem;
+        }
+
+        .control-row input[type="range"] {
+            width: 120px;
+        }
+
+        .control-row input[type="number"] {
+            width: 60px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #fff;
+            padding: 5px;
+            border-radius: 5px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.3s;
+            width: 100%;
+            margin-bottom: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #00d4ff, #0099cc);
+            color: #fff;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(0, 212, 255, 0.4);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #ff6b6b, #ee5a5a);
+            color: #fff;
+        }
+
+        .btn.active {
+            background: linear-gradient(135deg, #ff9f43, #ff6b35);
+            box-shadow: 0 0 20px rgba(255, 159, 67, 0.5);
+        }
+
+        .mode-indicator {
+            text-align: center;
+            padding: 10px;
+            border-radius: 8px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .mode-play {
+            background: rgba(0, 212, 255, 0.2);
+            color: #00d4ff;
+        }
+
+        .mode-edit {
+            background: rgba(255, 159, 67, 0.2);
+            color: #ff9f43;
+        }
+
+        .canvas-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        #mainCanvas {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            cursor: crosshair;
+        }
+
+        .drop-zone {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 400px;
+            height: 300px;
+            border: 3px dashed rgba(255, 255, 255, 0.3);
+            border-radius: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .drop-zone:hover {
+            border-color: #00d4ff;
+            background: rgba(0, 212, 255, 0.1);
+        }
+
+        .drop-zone.drag-over {
+            border-color: #00d4ff;
+            background: rgba(0, 212, 255, 0.2);
+            transform: translate(-50%, -50%) scale(1.05);
+        }
+
+        .drop-zone svg {
+            width: 80px;
+            height: 80px;
+            fill: rgba(255, 255, 255, 0.5);
+            margin-bottom: 20px;
+        }
+
+        .drop-zone p {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 1.1rem;
+        }
+
+        .drop-zone.hidden {
+            display: none;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        .weight-preview {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .weight-gradient {
+            flex: 1;
+            height: 20px;
+            background: linear-gradient(to right, #0000ff, #00ff00, #ffff00, #ff0000);
+            border-radius: 5px;
+        }
+
+        .weight-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            color: #888;
+        }
+
+        .brush-preview {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            margin: 10px auto;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .brush-preview-inner {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(255, 100, 100, 0.8), transparent);
+        }
+
+        .instructions {
+            font-size: 0.8rem;
+            color: #888;
+            line-height: 1.5;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+        }
+
+        .instructions strong {
+            color: #00d4ff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <aside class="sidebar">
+            <h1>🎨 プルンプルン画像</h1>
+
+            <div class="mode-indicator mode-play" id="modeIndicator">
+                ▶ 再生モード
+            </div>
+
+            <div class="control-group">
+                <h3>画像</h3>
+                <button class="btn btn-primary" id="loadImageBtn">📁 画像を読み込む</button>
+                <input type="file" id="fileInput" accept="image/*">
+            </div>
+
+            <div class="control-group">
+                <h3>メッシュ設定</h3>
+                <div class="control-row">
+                    <label>分割数 X</label>
+                    <input type="number" id="meshDivisionsX" value="10" min="2" max="50">
+                </div>
+                <div class="control-row">
+                    <label>分割数 Y</label>
+                    <input type="number" id="meshDivisionsY" value="10" min="2" max="50">
+                </div>
+                <button class="btn btn-secondary" id="regenerateMeshBtn">メッシュ再生成</button>
+            </div>
+
+            <div class="control-group">
+                <h3>物理シミュレーション</h3>
+                <div class="control-row">
+                    <label>硬さ</label>
+                    <input type="range" id="stiffness" min="0.01" max="1" step="0.01" value="0.3">
+                </div>
+                <div class="control-row">
+                    <label>減衰</label>
+                    <input type="range" id="damping" min="0.8" max="0.99" step="0.01" value="0.95">
+                </div>
+                <div class="control-row">
+                    <label>重力</label>
+                    <input type="range" id="gravity" min="0" max="2" step="0.1" value="0.5">
+                </div>
+            </div>
+
+            <div class="control-group">
+                <h3>モード切替</h3>
+                <button class="btn btn-secondary" id="playModeBtn">▶ 再生モード</button>
+                <button class="btn btn-secondary" id="editModeBtn">🖌 編集モード</button>
+                <button class="btn btn-danger" id="resetBtn">↺ リセット</button>
+            </div>
+
+            <div class="control-group" id="editControls" style="display: none;">
+                <h3>ウェイトペイント</h3>
+                <div class="control-row">
+                    <label>ブラシサイズ</label>
+                    <input type="range" id="brushSize" min="10" max="100" value="30">
+                </div>
+                <div class="control-row">
+                    <label>ブラシ強度</label>
+                    <input type="range" id="brushStrength" min="0.01" max="0.3" step="0.01" value="0.1">
+                </div>
+                <div class="control-row">
+                    <label>追加/削除</label>
+                    <button class="btn btn-secondary active" id="addWeightBtn" style="width: auto; padding: 5px 15px;">+</button>
+                    <button class="btn btn-secondary" id="removeWeightBtn" style="width: auto; padding: 5px 15px;">-</button>
+                </div>
+                <div class="brush-preview" id="brushPreview">
+                    <div class="brush-preview-inner" id="brushPreviewInner"></div>
+                </div>
+                <div class="weight-preview">
+                    <span>固定</span>
+                    <div class="weight-gradient"></div>
+                    <span>揺れる</span>
+                </div>
+                <button class="btn btn-secondary" id="clearWeightsBtn">ウェイトをクリア</button>
+            </div>
+
+            <div class="instructions">
+                <strong>使い方:</strong><br>
+                1. 画像を読み込む<br>
+                2. 編集モードでウェイトを塗る<br>
+                &nbsp;&nbsp;&nbsp;(赤い部分が揺れる)<br>
+                3. 再生モードでドラッグして揺らす<br>
+                <br>
+                <strong>ヒント:</strong> 右クリック/Shiftでウェイト削除
+            </div>
+        </aside>
+
+        <main class="canvas-container">
+            <canvas id="mainCanvas" width="800" height="600"></canvas>
+            <div class="drop-zone" id="dropZone">
+                <svg viewBox="0 0 24 24">
+                    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                </svg>
+                <p>画像をドラッグ＆ドロップ<br>またはクリックして選択</p>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // ==========================================
+        // Main Application
+        // ==========================================
+
+        class MeshDeformationApp {
+            constructor() {
+                this.canvas = document.getElementById('mainCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.image = null;
+                this.mesh = null;
+                this.mode = 'play'; // 'play' or 'edit'
+                this.isPlaying = true;
+                this.isDragging = false;
+                this.draggedVertex = null;
+                this.mousePos = { x: 0, y: 0 };
+                this.lastMousePos = { x: 0, y: 0 };
+
+                // Mesh settings
+                this.divisionsX = 10;
+                this.divisionsY = 10;
+
+                // Physics settings
+                this.stiffness = 0.3;
+                this.damping = 0.95;
+                this.gravity = 0.5;
+
+                // Brush settings
+                this.brushSize = 30;
+                this.brushStrength = 0.1;
+                this.brushMode = 'add'; // 'add' or 'remove'
+
+                // Image position and scale
+                this.imageX = 0;
+                this.imageY = 0;
+                this.imageScale = 1;
+
+                this.init();
+            }
+
+            init() {
+                this.setupEventListeners();
+                this.resizeCanvas();
+                this.animate();
+            }
+
+            setupEventListeners() {
+                // File input
+                const fileInput = document.getElementById('fileInput');
+                const loadImageBtn = document.getElementById('loadImageBtn');
+                const dropZone = document.getElementById('dropZone');
+
+                loadImageBtn.addEventListener('click', () => fileInput.click());
+                dropZone.addEventListener('click', () => fileInput.click());
+
+                fileInput.addEventListener('change', (e) => {
+                    if (e.target.files[0]) this.loadImage(e.target.files[0]);
+                });
+
+                // Drag and drop
+                dropZone.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    dropZone.classList.add('drag-over');
+                });
+
+                dropZone.addEventListener('dragleave', () => {
+                    dropZone.classList.remove('drag-over');
+                });
+
+                dropZone.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    dropZone.classList.remove('drag-over');
+                    if (e.dataTransfer.files[0]) {
+                        this.loadImage(e.dataTransfer.files[0]);
+                    }
+                });
+
+                // Canvas events
+                this.canvas.addEventListener('mousedown', (e) => this.onMouseDown(e));
+                this.canvas.addEventListener('mousemove', (e) => this.onMouseMove(e));
+                this.canvas.addEventListener('mouseup', () => this.onMouseUp());
+                this.canvas.addEventListener('mouseleave', () => this.onMouseUp());
+                this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+                // Touch events
+                this.canvas.addEventListener('touchstart', (e) => this.onTouchStart(e));
+                this.canvas.addEventListener('touchmove', (e) => this.onTouchMove(e));
+                this.canvas.addEventListener('touchend', () => this.onMouseUp());
+
+                // Controls
+                document.getElementById('meshDivisionsX').addEventListener('change', (e) => {
+                    this.divisionsX = parseInt(e.target.value);
+                });
+                document.getElementById('meshDivisionsY').addEventListener('change', (e) => {
+                    this.divisionsY = parseInt(e.target.value);
+                });
+                document.getElementById('regenerateMeshBtn').addEventListener('click', () => {
+                    if (this.image) this.generateMesh();
+                });
+
+                document.getElementById('stiffness').addEventListener('input', (e) => {
+                    this.stiffness = parseFloat(e.target.value);
+                });
+                document.getElementById('damping').addEventListener('input', (e) => {
+                    this.damping = parseFloat(e.target.value);
+                });
+                document.getElementById('gravity').addEventListener('input', (e) => {
+                    this.gravity = parseFloat(e.target.value);
+                });
+
+                document.getElementById('playModeBtn').addEventListener('click', () => this.setMode('play'));
+                document.getElementById('editModeBtn').addEventListener('click', () => this.setMode('edit'));
+                document.getElementById('resetBtn').addEventListener('click', () => this.resetMesh());
+
+                document.getElementById('brushSize').addEventListener('input', (e) => {
+                    this.brushSize = parseInt(e.target.value);
+                    this.updateBrushPreview();
+                });
+                document.getElementById('brushStrength').addEventListener('input', (e) => {
+                    this.brushStrength = parseFloat(e.target.value);
+                });
+                document.getElementById('addWeightBtn').addEventListener('click', () => {
+                    this.brushMode = 'add';
+                    document.getElementById('addWeightBtn').classList.add('active');
+                    document.getElementById('removeWeightBtn').classList.remove('active');
+                });
+                document.getElementById('removeWeightBtn').addEventListener('click', () => {
+                    this.brushMode = 'remove';
+                    document.getElementById('removeWeightBtn').classList.add('active');
+                    document.getElementById('addWeightBtn').classList.remove('active');
+                });
+                document.getElementById('clearWeightsBtn').addEventListener('click', () => this.clearWeights());
+
+                // Window resize
+                window.addEventListener('resize', () => this.resizeCanvas());
+
+                this.updateBrushPreview();
+            }
+
+            loadImage(file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        this.image = img;
+                        document.getElementById('dropZone').classList.add('hidden');
+                        this.fitImageToCanvas();
+                        this.generateMesh();
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+
+            fitImageToCanvas() {
+                const padding = 50;
+                const maxWidth = this.canvas.width - padding * 2;
+                const maxHeight = this.canvas.height - padding * 2;
+
+                const scaleX = maxWidth / this.image.width;
+                const scaleY = maxHeight / this.image.height;
+                this.imageScale = Math.min(scaleX, scaleY, 1);
+
+                const scaledWidth = this.image.width * this.imageScale;
+                const scaledHeight = this.image.height * this.imageScale;
+
+                this.imageX = (this.canvas.width - scaledWidth) / 2;
+                this.imageY = (this.canvas.height - scaledHeight) / 2;
+            }
+
+            generateMesh() {
+                const width = this.image.width * this.imageScale;
+                const height = this.image.height * this.imageScale;
+
+                const vertices = [];
+                const originalPositions = [];
+                const velocities = [];
+                const weights = [];
+
+                // Create vertices
+                for (let y = 0; y <= this.divisionsY; y++) {
+                    for (let x = 0; x <= this.divisionsX; x++) {
+                        const px = this.imageX + (x / this.divisionsX) * width;
+                        const py = this.imageY + (y / this.divisionsY) * height;
+
+                        vertices.push({ x: px, y: py });
+                        originalPositions.push({ x: px, y: py });
+                        velocities.push({ x: 0, y: 0 });
+
+                        // Default weight: edges are fixed (0), interior can move (1)
+                        const isEdge = x === 0 || x === this.divisionsX || y === 0;
+                        weights.push(isEdge ? 0 : 0.5);
+                    }
+                }
+
+                // Create springs
+                const springs = [];
+                const cols = this.divisionsX + 1;
+
+                for (let y = 0; y <= this.divisionsY; y++) {
+                    for (let x = 0; x <= this.divisionsX; x++) {
+                        const i = y * cols + x;
+
+                        // Horizontal spring
+                        if (x < this.divisionsX) {
+                            springs.push({
+                                a: i,
+                                b: i + 1,
+                                restLength: this.getDistance(vertices[i], vertices[i + 1])
+                            });
+                        }
+
+                        // Vertical spring
+                        if (y < this.divisionsY) {
+                            springs.push({
+                                a: i,
+                                b: i + cols,
+                                restLength: this.getDistance(vertices[i], vertices[i + cols])
+                            });
+                        }
+
+                        // Diagonal springs for stability
+                        if (x < this.divisionsX && y < this.divisionsY) {
+                            springs.push({
+                                a: i,
+                                b: i + cols + 1,
+                                restLength: this.getDistance(vertices[i], vertices[i + cols + 1])
+                            });
+                            springs.push({
+                                a: i + 1,
+                                b: i + cols,
+                                restLength: this.getDistance(vertices[i + 1], vertices[i + cols])
+                            });
+                        }
+                    }
+                }
+
+                // Create faces (triangles)
+                const faces = [];
+                for (let y = 0; y < this.divisionsY; y++) {
+                    for (let x = 0; x < this.divisionsX; x++) {
+                        const i = y * cols + x;
+                        faces.push([i, i + 1, i + cols]);
+                        faces.push([i + 1, i + cols + 1, i + cols]);
+                    }
+                }
+
+                this.mesh = {
+                    vertices,
+                    originalPositions,
+                    velocities,
+                    weights,
+                    springs,
+                    faces,
+                    cols,
+                    rows: this.divisionsY + 1
+                };
+            }
+
+            getDistance(a, b) {
+                const dx = b.x - a.x;
+                const dy = b.y - a.y;
+                return Math.sqrt(dx * dx + dy * dy);
+            }
+
+            resizeCanvas() {
+                const container = this.canvas.parentElement;
+                this.canvas.width = container.clientWidth - 40;
+                this.canvas.height = container.clientHeight - 40;
+
+                if (this.image) {
+                    this.fitImageToCanvas();
+                    this.generateMesh();
+                }
+            }
+
+            setMode(mode) {
+                this.mode = mode;
+                const indicator = document.getElementById('modeIndicator');
+                const editControls = document.getElementById('editControls');
+                const playBtn = document.getElementById('playModeBtn');
+                const editBtn = document.getElementById('editModeBtn');
+
+                if (mode === 'play') {
+                    indicator.textContent = '▶ 再生モード';
+                    indicator.className = 'mode-indicator mode-play';
+                    editControls.style.display = 'none';
+                    playBtn.classList.add('active');
+                    editBtn.classList.remove('active');
+                    this.canvas.style.cursor = 'grab';
+                } else {
+                    indicator.textContent = '🖌 編集モード';
+                    indicator.className = 'mode-indicator mode-edit';
+                    editControls.style.display = 'block';
+                    editBtn.classList.add('active');
+                    playBtn.classList.remove('active');
+                    this.canvas.style.cursor = 'crosshair';
+                }
+            }
+
+            resetMesh() {
+                if (!this.mesh) return;
+
+                for (let i = 0; i < this.mesh.vertices.length; i++) {
+                    this.mesh.vertices[i].x = this.mesh.originalPositions[i].x;
+                    this.mesh.vertices[i].y = this.mesh.originalPositions[i].y;
+                    this.mesh.velocities[i].x = 0;
+                    this.mesh.velocities[i].y = 0;
+                }
+            }
+
+            clearWeights() {
+                if (!this.mesh) return;
+
+                for (let i = 0; i < this.mesh.weights.length; i++) {
+                    const x = i % this.mesh.cols;
+                    const y = Math.floor(i / this.mesh.cols);
+                    const isEdge = x === 0 || x === this.mesh.cols - 1 || y === 0;
+                    this.mesh.weights[i] = isEdge ? 0 : 0;
+                }
+            }
+
+            updateBrushPreview() {
+                const preview = document.getElementById('brushPreviewInner');
+                const size = Math.min(this.brushSize, 50);
+                preview.style.width = size + 'px';
+                preview.style.height = size + 'px';
+            }
+
+            getMousePos(e) {
+                const rect = this.canvas.getBoundingClientRect();
+                return {
+                    x: e.clientX - rect.left,
+                    y: e.clientY - rect.top
+                };
+            }
+
+            onMouseDown(e) {
+                this.isDragging = true;
+                this.mousePos = this.getMousePos(e);
+                this.lastMousePos = { ...this.mousePos };
+
+                if (this.mode === 'play' && this.mesh) {
+                    // Find nearest vertex to drag
+                    let minDist = Infinity;
+                    for (let i = 0; i < this.mesh.vertices.length; i++) {
+                        const v = this.mesh.vertices[i];
+                        const dist = this.getDistance(v, this.mousePos);
+                        if (dist < minDist && dist < 50) {
+                            minDist = dist;
+                            this.draggedVertex = i;
+                        }
+                    }
+                    this.canvas.style.cursor = 'grabbing';
+                } else if (this.mode === 'edit') {
+                    const actualMode = (e.button === 2 || e.shiftKey) ? 'remove' : this.brushMode;
+                    this.paintWeight(this.mousePos.x, this.mousePos.y, actualMode);
+                }
+            }
+
+            onMouseMove(e) {
+                this.lastMousePos = { ...this.mousePos };
+                this.mousePos = this.getMousePos(e);
+
+                if (!this.isDragging) return;
+
+                if (this.mode === 'play' && this.draggedVertex !== null) {
+                    // Move the dragged vertex
+                    const v = this.mesh.vertices[this.draggedVertex];
+                    v.x = this.mousePos.x;
+                    v.y = this.mousePos.y;
+                    this.mesh.velocities[this.draggedVertex].x = 0;
+                    this.mesh.velocities[this.draggedVertex].y = 0;
+                } else if (this.mode === 'edit') {
+                    const actualMode = (e.buttons === 2 || e.shiftKey) ? 'remove' : this.brushMode;
+                    this.paintWeight(this.mousePos.x, this.mousePos.y, actualMode);
+                }
+            }
+
+            onMouseUp() {
+                this.isDragging = false;
+                this.draggedVertex = null;
+                if (this.mode === 'play') {
+                    this.canvas.style.cursor = 'grab';
+                }
+            }
+
+            onTouchStart(e) {
+                e.preventDefault();
+                const touch = e.touches[0];
+                this.onMouseDown({
+                    clientX: touch.clientX,
+                    clientY: touch.clientY,
+                    button: 0
+                });
+            }
+
+            onTouchMove(e) {
+                e.preventDefault();
+                const touch = e.touches[0];
+                this.onMouseMove({
+                    clientX: touch.clientX,
+                    clientY: touch.clientY,
+                    buttons: 1
+                });
+            }
+
+            paintWeight(x, y, mode) {
+                if (!this.mesh) return;
+
+                for (let i = 0; i < this.mesh.vertices.length; i++) {
+                    const v = this.mesh.originalPositions[i];
+                    const dist = this.getDistance(v, { x, y });
+
+                    if (dist < this.brushSize) {
+                        const falloff = 1 - (dist / this.brushSize);
+                        const delta = this.brushStrength * falloff;
+
+                        if (mode === 'add') {
+                            this.mesh.weights[i] = Math.min(1, this.mesh.weights[i] + delta);
+                        } else {
+                            this.mesh.weights[i] = Math.max(0, this.mesh.weights[i] - delta);
+                        }
+                    }
+                }
+            }
+
+            updatePhysics() {
+                if (!this.mesh || !this.isPlaying) return;
+
+                const { vertices, originalPositions, velocities, weights, springs } = this.mesh;
+
+                // Apply spring forces
+                for (const spring of springs) {
+                    const a = vertices[spring.a];
+                    const b = vertices[spring.b];
+
+                    const dx = b.x - a.x;
+                    const dy = b.y - a.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+
+                    if (dist === 0) continue;
+
+                    const force = (dist - spring.restLength) * this.stiffness;
+                    const fx = (dx / dist) * force;
+                    const fy = (dy / dist) * force;
+
+                    const wa = weights[spring.a];
+                    const wb = weights[spring.b];
+
+                    velocities[spring.a].x += fx * wa;
+                    velocities[spring.a].y += fy * wa;
+                    velocities[spring.b].x -= fx * wb;
+                    velocities[spring.b].y -= fy * wb;
+                }
+
+                // Apply return-to-original force
+                for (let i = 0; i < vertices.length; i++) {
+                    const v = vertices[i];
+                    const o = originalPositions[i];
+                    const w = weights[i];
+
+                    const dx = o.x - v.x;
+                    const dy = o.y - v.y;
+
+                    velocities[i].x += dx * this.stiffness * 0.5 * w;
+                    velocities[i].y += dy * this.stiffness * 0.5 * w;
+
+                    // Apply gravity
+                    velocities[i].y += this.gravity * w;
+                }
+
+                // Update positions
+                for (let i = 0; i < vertices.length; i++) {
+                    const w = weights[i];
+                    if (w === 0) continue; // Fixed vertex
+
+                    velocities[i].x *= this.damping;
+                    velocities[i].y *= this.damping;
+
+                    vertices[i].x += velocities[i].x;
+                    vertices[i].y += velocities[i].y;
+                }
+            }
+
+            render() {
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+                if (!this.mesh || !this.image) return;
+
+                const { vertices, originalPositions, faces, weights } = this.mesh;
+
+                // Draw textured mesh using triangles
+                for (const face of faces) {
+                    const [i0, i1, i2] = face;
+
+                    // Source triangle (original positions for texture mapping)
+                    const sx0 = (originalPositions[i0].x - this.imageX) / this.imageScale;
+                    const sy0 = (originalPositions[i0].y - this.imageY) / this.imageScale;
+                    const sx1 = (originalPositions[i1].x - this.imageX) / this.imageScale;
+                    const sy1 = (originalPositions[i1].y - this.imageY) / this.imageScale;
+                    const sx2 = (originalPositions[i2].x - this.imageX) / this.imageScale;
+                    const sy2 = (originalPositions[i2].y - this.imageY) / this.imageScale;
+
+                    // Destination triangle (current positions)
+                    const dx0 = vertices[i0].x;
+                    const dy0 = vertices[i0].y;
+                    const dx1 = vertices[i1].x;
+                    const dy1 = vertices[i1].y;
+                    const dx2 = vertices[i2].x;
+                    const dy2 = vertices[i2].y;
+
+                    this.drawTexturedTriangle(
+                        sx0, sy0, sx1, sy1, sx2, sy2,
+                        dx0, dy0, dx1, dy1, dx2, dy2
+                    );
+                }
+
+                // In edit mode, draw weight overlay and mesh
+                if (this.mode === 'edit') {
+                    this.drawWeightOverlay();
+                    this.drawMeshWireframe();
+                }
+
+                // Draw brush cursor in edit mode
+                if (this.mode === 'edit') {
+                    this.ctx.beginPath();
+                    this.ctx.arc(this.mousePos.x, this.mousePos.y, this.brushSize, 0, Math.PI * 2);
+                    this.ctx.strokeStyle = this.brushMode === 'add' ?
+                        'rgba(255, 100, 100, 0.8)' : 'rgba(100, 100, 255, 0.8)';
+                    this.ctx.lineWidth = 2;
+                    this.ctx.stroke();
+                }
+            }
+
+            drawTexturedTriangle(sx0, sy0, sx1, sy1, sx2, sy2, dx0, dy0, dx1, dy1, dx2, dy2) {
+                this.ctx.save();
+                this.ctx.beginPath();
+                this.ctx.moveTo(dx0, dy0);
+                this.ctx.lineTo(dx1, dy1);
+                this.ctx.lineTo(dx2, dy2);
+                this.ctx.closePath();
+                this.ctx.clip();
+
+                // Calculate affine transformation matrix
+                const denom = (sx1 - sx0) * (sy2 - sy0) - (sx2 - sx0) * (sy1 - sy0);
+                if (Math.abs(denom) < 0.0001) {
+                    this.ctx.restore();
+                    return;
+                }
+
+                const m11 = ((dx1 - dx0) * (sy2 - sy0) - (dx2 - dx0) * (sy1 - sy0)) / denom;
+                const m12 = ((dx2 - dx0) * (sy1 - sy0) - (dx1 - dx0) * (sy2 - sy0)) / denom;
+                const m21 = ((dy1 - dy0) * (sy2 - sy0) - (dy2 - dy0) * (sy1 - sy0)) / denom;
+                const m22 = ((dy2 - dy0) * (sy1 - sy0) - (dy1 - dy0) * (sy2 - sy0)) / denom;
+                const m13 = dx0 - m11 * sx0 - m12 * sy0;
+                const m23 = dy0 - m21 * sx0 - m22 * sy0;
+
+                this.ctx.setTransform(m11, m21, m12, m22, m13, m23);
+                this.ctx.drawImage(this.image, 0, 0);
+                this.ctx.restore();
+            }
+
+            drawWeightOverlay() {
+                const { originalPositions, weights, cols, rows } = this.mesh;
+
+                this.ctx.globalAlpha = 0.5;
+
+                for (let y = 0; y < rows - 1; y++) {
+                    for (let x = 0; x < cols - 1; x++) {
+                        const i = y * cols + x;
+                        const avgWeight = (weights[i] + weights[i + 1] +
+                                          weights[i + cols] + weights[i + cols + 1]) / 4;
+
+                        // Color: blue (fixed) -> green -> yellow -> red (moving)
+                        const r = Math.min(255, avgWeight * 2 * 255);
+                        const g = Math.min(255, (1 - Math.abs(avgWeight - 0.5) * 2) * 255);
+                        const b = Math.min(255, (1 - avgWeight) * 2 * 255);
+
+                        this.ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+
+                        const p0 = originalPositions[i];
+                        const p1 = originalPositions[i + 1];
+                        const p2 = originalPositions[i + cols + 1];
+                        const p3 = originalPositions[i + cols];
+
+                        this.ctx.beginPath();
+                        this.ctx.moveTo(p0.x, p0.y);
+                        this.ctx.lineTo(p1.x, p1.y);
+                        this.ctx.lineTo(p2.x, p2.y);
+                        this.ctx.lineTo(p3.x, p3.y);
+                        this.ctx.closePath();
+                        this.ctx.fill();
+                    }
+                }
+
+                this.ctx.globalAlpha = 1;
+            }
+
+            drawMeshWireframe() {
+                const { originalPositions, cols, rows } = this.mesh;
+
+                this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+                this.ctx.lineWidth = 1;
+
+                // Horizontal lines
+                for (let y = 0; y <= rows - 1; y++) {
+                    this.ctx.beginPath();
+                    for (let x = 0; x <= cols - 1; x++) {
+                        const p = originalPositions[y * cols + x];
+                        if (x === 0) {
+                            this.ctx.moveTo(p.x, p.y);
+                        } else {
+                            this.ctx.lineTo(p.x, p.y);
+                        }
+                    }
+                    this.ctx.stroke();
+                }
+
+                // Vertical lines
+                for (let x = 0; x <= cols - 1; x++) {
+                    this.ctx.beginPath();
+                    for (let y = 0; y <= rows - 1; y++) {
+                        const p = originalPositions[y * cols + x];
+                        if (y === 0) {
+                            this.ctx.moveTo(p.x, p.y);
+                        } else {
+                            this.ctx.lineTo(p.x, p.y);
+                        }
+                    }
+                    this.ctx.stroke();
+                }
+
+                // Draw vertices
+                for (let i = 0; i < originalPositions.length; i++) {
+                    const p = originalPositions[i];
+                    const w = this.mesh.weights[i];
+
+                    this.ctx.beginPath();
+                    this.ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+                    this.ctx.fillStyle = w === 0 ? '#00d4ff' :
+                                        w < 0.5 ? '#ffff00' : '#ff4444';
+                    this.ctx.fill();
+                }
+            }
+
+            animate() {
+                this.updatePhysics();
+                this.render();
+                requestAnimationFrame(() => this.animate());
+            }
+        }
+
+        // Initialize the application
+        const app = new MeshDeformationApp();
+    </script>
+</body>
+</html>
