@@ -20,9 +20,12 @@ OUT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # 卵型ボディの寸法
 BODY_LEN = 1.5  # X 方向の半径
-BODY_RAD = 1.0  # Y/Z 方向の半径
+BODY_RAD = 1.0  # Y 方向の半径
+BODY_FLAT = 0.86  # Z 方向のつぶし具合
 TAPER = 0.22  # 機首側をどれだけ細くするか
-SPLIT_X = -0.12  # 青(前)と赤(後ろ)の境目 (単位球上の X)
+SPLIT_X = -0.3  # 前部と赤い後部キャップの境目 (単位球上の X)
+RIM_H = 0.2  # キャノピー下の黄色い縁の高さ (単位球上の Z)
+RIM_BACK = 0.2  # キャノピー後ろの黄色い縁の幅 (単位球上の X)
 
 # メタボールは指定半径より小さく見えるので、見た目の半径から逆算する係数
 META_VISIBLE = 0.575
@@ -31,7 +34,7 @@ META_VISIBLE = 0.575
 def egg_point(u, scale=1.0):
     """単位球上の方向ベクトル u を卵型ボディ表面の座標へ写す。"""
     t = (1.0 - TAPER * u.x) * BODY_RAD * scale
-    return Vector((u.x * BODY_LEN * scale, u.y * t, u.z * t))
+    return Vector((u.x * BODY_LEN * scale, u.y * t, u.z * t * BODY_FLAT))
 
 
 def make_material(name, color, roughness=0.3):
@@ -111,43 +114,56 @@ def chain(start, end, radius, spacing=0.1, end_radius=None):
 
 
 def build_body(mats, parent):
-    """青(前上)・赤(後ろ上)・緑(下) に塗り分けた卵型ボディ。"""
+    """ドット絵の配色に合わせて塗り分けた卵型ボディ。
+
+    後部は上下とも赤いキャップ。前部は上が青いキャノピー (下と後ろに黄色い縁)、下が緑。
+    """
     bm = bmesh.new()
     bmesh.ops.create_uvsphere(bm, u_segments=64, v_segments=48, radius=1.0)
     # 球の極を X 軸 (機首/機尾) に向ける
     for v in bm.verts:
         v.co = Vector((v.co.z, v.co.y, -v.co.x))
+    # 色の境目でメッシュを切っておき、境界線をきれいに出す
+    for co, no in (
+        ((SPLIT_X, 0, 0), (1, 0, 0)),
+        ((SPLIT_X + RIM_BACK, 0, 0), (1, 0, 0)),
+        ((0, 0, RIM_H), (0, 0, 1)),
+    ):
+        geom = bm.verts[:] + bm.edges[:] + bm.faces[:]
+        bmesh.ops.bisect_plane(bm, geom=geom, plane_co=co, plane_no=no)
     for f in bm.faces:
         c = f.calc_center_median()
-        if c.z < 0.0:
-            f.material_index = 2  # 緑
-        elif c.x > SPLIT_X:
-            f.material_index = 0  # 青
-        else:
+        if c.x < SPLIT_X:
             f.material_index = 1  # 赤
+        elif c.z < 0.0:
+            f.material_index = 2  # 緑
+        elif c.z < RIM_H or c.x < SPLIT_X + RIM_BACK:
+            f.material_index = 3  # 黄
+        else:
+            f.material_index = 0  # 青
     for v in bm.verts:
         v.co = egg_point(v.co.normalized())
     mesh = bpy.data.meshes.new("Body")
     bm.to_mesh(mesh)
     bm.free()
-    return finish_mesh("Body", mesh, [mats["blue"], mats["red"], mats["green"]], parent)
+    return finish_mesh("Body", mesh, [mats["blue"], mats["red"], mats["green"], mats["rim"]], parent)
 
 
 def build_trim(mats, parent):
     n = 96
-    # 上下を分ける水平の縁取り
+    # 上下を分ける水平の紺のライン
     ring = [
         egg_point(Vector((math.cos(a), math.sin(a), 0.0)), 1.005)
         for a in (2 * math.pi * i / n for i in range(n))
     ]
-    tube("TrimEquator", ring, 0.055, mats["trim"], parent, cyclic=True)
-    # 青と赤を分ける縦の縁取り (上半分のアーチ)
+    tube("TrimEquator", ring, 0.035, mats["navy"], parent, cyclic=True)
+    # 前部と赤い後部キャップを分ける紺のライン
     s = math.sqrt(1.0 - SPLIT_X**2)
-    arch = [
+    divider = [
         egg_point(Vector((SPLIT_X, s * math.cos(a), s * math.sin(a))), 1.005)
-        for a in (math.pi * i / (n // 2) for i in range(n // 2 + 1))
+        for a in (2 * math.pi * i / n for i in range(n))
     ]
-    tube("TrimDivider", arch, 0.045, mats["trim"], parent)
+    tube("TrimDivider", divider, 0.035, mats["navy"], parent, cyclic=True)
 
 
 def build_wing(side, mats, parent):
@@ -165,12 +181,12 @@ def build_wing(side, mats, parent):
         start = Vector((-0.1, 0, 0.14 - 0.09 * i))
         end = start + Vector((-math.cos(a), 0, math.sin(a))) * length
         balls += chain(start, end, r0, end_radius=r1)
-    root = egg_point(Vector((-0.38, side * 0.88, 0.28)).normalized(), 0.97)
+    root = egg_point(Vector((-0.62, side * 0.78, 0.06)).normalized(), 0.97)
     matrix = (
         Matrix.Translation(root)
         @ Matrix.Rotation(math.radians(-side * 24), 4, "Z")  # 羽先を外へ開く
         @ Matrix.Rotation(math.radians(side * 12), 4, "X")  # 少し上へ反らせる
-        @ Matrix.Diagonal((1.0, 0.5, 1.0, 1.0))  # 薄くつぶす
+        @ Matrix.Diagonal((0.72, 0.36, 0.72, 1.0))  # 小ぶりにして薄くつぶす
     )
     blob(f"Wing.{tag}", balls, mats["white"], parent, matrix)
 
@@ -186,10 +202,11 @@ def build_leg(side, mats, parent):
 
 def build_opa_opa():
     mats = {
-        "blue": make_material("CanopyBlue", (0.07, 0.38, 0.62), roughness=0.12),
-        "red": make_material("BodyRed", (0.80, 0.10, 0.05), roughness=0.3),
-        "green": make_material("BodyGreen", (0.05, 0.42, 0.12), roughness=0.3),
-        "trim": make_material("TrimYellow", (0.90, 0.74, 0.30), roughness=0.3),
+        "blue": make_material("CanopyBlue", (0.12, 0.45, 0.85), roughness=0.1),
+        "red": make_material("BodyRed", (0.80, 0.03, 0.03), roughness=0.3),
+        "green": make_material("BodyGreen", (0.15, 0.62, 0.05), roughness=0.3),
+        "rim": make_material("RimYellow", (0.95, 0.80, 0.05), roughness=0.3),
+        "navy": make_material("LineNavy", (0.01, 0.01, 0.25), roughness=0.3),
         "yellow": make_material("LegYellow", (0.80, 0.68, 0.10), roughness=0.3),
         "white": make_material("FeatherWhite", (0.85, 0.85, 0.83), roughness=0.4),
     }
@@ -257,7 +274,7 @@ def setup_scene():
 
 
 CAM_TARGET = (-0.4, 0.0, 1.7)
-CAM_FRONT = (7.6, 5.6, 2.3)  # 斜め前から
+CAM_FRONT = (3.6, 8.8, 2.3)  # ドット絵に近い、機首が左の横寄りの構図
 CAM_REAR = (-7.0, 5.5, 3.6)  # 斜め後ろから (翼の形が分かる)
 
 
