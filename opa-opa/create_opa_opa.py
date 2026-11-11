@@ -31,16 +31,12 @@ def egg_point(u, scale=1.0):
     return Vector((u.x * BODY_LEN * scale, u.y * t, u.z * t))
 
 
-def make_material(name, color, roughness=0.3, metallic=0.0, emission=None):
+def make_material(name, color, roughness=0.3):
     mat = bpy.data.materials.new(name)
     mat.use_nodes = True
     bsdf = mat.node_tree.nodes["Principled BSDF"]
     bsdf.inputs["Base Color"].default_value = (*color, 1.0)
     bsdf.inputs["Roughness"].default_value = roughness
-    bsdf.inputs["Metallic"].default_value = metallic
-    if emission:
-        bsdf.inputs["Emission Color"].default_value = (*emission, 1.0)
-        bsdf.inputs["Emission Strength"].default_value = 3.0
     mat.diffuse_color = (*color, 1.0)
     return mat
 
@@ -163,15 +159,6 @@ def build_foot(side, mats, parent):
     ellipsoid(f"Foot.{tag}", Vector((0.28, y, -1.22)), (0.34, 0.2, 0.14), mats["orange"], parent)
 
 
-def build_thruster(mats, parent):
-    rot = Matrix.Rotation(math.radians(90), 4, "Y")
-    bm = bmesh.new()
-    bmesh.ops.create_cone(bm, cap_ends=False, segments=32, radius1=0.16, radius2=0.26, depth=0.3)
-    bmesh.ops.transform(bm, matrix=Matrix.Translation((-1.55, 0, 0)) @ rot.inverted(), verts=bm.verts)
-    mesh_object("Thruster", bm, [mats["metal"]], parent)
-    ellipsoid("ThrusterGlow", Vector((-1.55, 0, 0)), (0.1, 0.18, 0.18), mats["glow"], parent)
-
-
 def build_opa_opa():
     mats = {
         "blue": make_material("CanopyBlue", (0.05, 0.25, 0.85), roughness=0.08),
@@ -180,8 +167,6 @@ def build_opa_opa():
         "yellow": make_material("TrimYellow", (1.0, 0.72, 0.05), roughness=0.3),
         "orange": make_material("Orange", (1.0, 0.33, 0.03), roughness=0.3),
         "white": make_material("FeatherWhite", (0.82, 0.84, 0.9), roughness=0.5),
-        "metal": make_material("Metal", (0.35, 0.36, 0.4), roughness=0.3, metallic=1.0),
-        "glow": make_material("Glow", (1.0, 0.6, 0.1), emission=(1.0, 0.45, 0.05)),
     }
     root = bpy.data.objects.new("OpaOpa", None)
     bpy.context.collection.objects.link(root)
@@ -190,7 +175,6 @@ def build_opa_opa():
     for side in (1, -1):
         build_wing(side, mats, root)
         build_foot(side, mats, root)
-    build_thruster(mats, root)
     return root
 
 
