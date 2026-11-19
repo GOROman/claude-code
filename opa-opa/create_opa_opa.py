@@ -19,11 +19,11 @@ from mathutils import Matrix, Vector
 OUT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # 卵型ボディの寸法
-BODY_LEN = 1.5  # X 方向の半径
+NOSE_LEN = 1.6  # いちばん太い位置から機首までの長さ
+TAIL_LEN = 0.9  # いちばん太い位置から機尾までの長さ
 BODY_RAD = 1.0  # Y 方向の半径
 BODY_FLAT = 0.86  # Z 方向のつぶし具合
-TAPER = 0.22  # 機首側をどれだけ細くするか
-SPLIT_X = -0.3  # 前部と赤い後部キャップの境目 (単位球上の X)
+SPLIT_X = 0.0  # 前部と赤い後部キャップの境目 (単位球上の X)
 RIM_H = 0.2  # キャノピー下の黄色い縁の高さ (単位球上の Z)
 RIM_BACK = 0.2  # キャノピー後ろの黄色い縁の幅 (単位球上の X)
 
@@ -33,8 +33,10 @@ META_VISIBLE = 0.575
 
 def egg_point(u, scale=1.0):
     """単位球上の方向ベクトル u を卵型ボディ表面の座標へ写す。"""
-    t = (1.0 - TAPER * u.x) * BODY_RAD * scale
-    return Vector((u.x * BODY_LEN * scale, u.y * t, u.z * t * BODY_FLAT))
+    # いちばん太い位置 (u.x = 0) を境に、前は長く、後ろは短い半楕円体をつなぐ
+    length = NOSE_LEN if u.x > 0 else TAIL_LEN
+    t = BODY_RAD * scale
+    return Vector((u.x * length * scale, u.y * t, u.z * t * BODY_FLAT))
 
 
 def make_material(name, color, roughness=0.3):
@@ -181,10 +183,10 @@ def build_wing(side, mats, parent):
         start = Vector((-0.1, 0, 0.14 - 0.09 * i))
         end = start + Vector((-math.cos(a), 0, math.sin(a))) * length
         balls += chain(start, end, r0, end_radius=r1)
-    root = egg_point(Vector((-0.62, side * 0.78, 0.06)).normalized(), 0.97)
+    root = egg_point(Vector((-0.3, side * 0.95, 0.06)).normalized(), 0.97)
     matrix = (
         Matrix.Translation(root)
-        @ Matrix.Rotation(math.radians(-side * 24), 4, "Z")  # 羽先を外へ開く
+        @ Matrix.Rotation(math.radians(-side * 12), 4, "Z")  # 羽先を外へ開く
         @ Matrix.Rotation(math.radians(side * 12), 4, "X")  # 少し上へ反らせる
         @ Matrix.Diagonal((0.72, 0.36, 0.72, 1.0))  # 小ぶりにして薄くつぶす
     )
@@ -194,9 +196,9 @@ def build_wing(side, mats, parent):
 def build_leg(side, mats, parent):
     """脚と足がひと続きになった丸いブーツ。"""
     tag = "L" if side > 0 else "R"
-    x, y = -0.15, side * 0.36
-    balls = chain((x, y, -0.75), (x, y, -1.72), 0.15)  # 脚
-    balls += chain((x - 0.02, y, -1.78), (x + 0.5, y, -1.80), 0.20, end_radius=0.21)  # 足
+    x, y = 0.2, side * 0.36
+    balls = chain((x, y, -0.6), (x, y, -1.22), 0.14)  # 脚
+    balls += chain((x - 0.02, y, -1.28), (x + 0.42, y, -1.30), 0.18, end_radius=0.19)  # 足
     return blob(f"Leg.{tag}", balls, mats["yellow"], parent)
 
 
@@ -273,7 +275,7 @@ def setup_scene():
     return cam
 
 
-CAM_TARGET = (-0.4, 0.0, 1.7)
+CAM_TARGET = (0.1, 0.0, 1.35)
 CAM_FRONT = (3.6, 8.8, 2.3)  # ドット絵に近い、機首が左の横寄りの構図
 CAM_REAR = (-7.0, 5.5, 3.6)  # 斜め後ろから (翼の形が分かる)
 
